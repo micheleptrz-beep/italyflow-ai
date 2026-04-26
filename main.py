@@ -53,7 +53,29 @@ app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 from app.routers.visuals import api as visuals_api
 app.include_router(visuals_api)
 
+# --- ItalyFlow AI Section 2 ---
+from app.routers.labels import router as labels_router, api as labels_api
+from app.routers.compliance import router as compliance_router, api as compliance_api
+from app.routers.translation import api as translation_api
+from app.routers.collaboration import api as collab_api
 
+app.include_router(labels_router)
+app.include_router(labels_api)
+app.include_router(compliance_router)
+app.include_router(compliance_api)
+app.include_router(translation_api)
+app.include_router(collab_api)
+
+# --- Scheduler (regulatory tracker every 6h) ---
+from app.scheduler import start_scheduler, shutdown_scheduler
+
+@app.on_event("startup")
+def _if_startup():
+    start_scheduler()
+
+@app.on_event("shutdown")
+def _if_shutdown():
+    shutdown_scheduler()
 
 
 client = genai.Client(api_key=settings.GOOGLE_API_KEY)
