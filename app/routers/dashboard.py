@@ -1,6 +1,6 @@
 """
 ItalyFlow AI - Dashboard router (P0). ASCII only.
-HTML (Jinja2 + HTMX) + JSON API endpoints.
+HTML (Jinja2 + HTMX) + JSON API endpoints. Hero background auto-injected.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from database import get_db  # existing dependency in database.py
+from database import get_db
 from app.services.dashboard_service import DashboardService
 from app.schemas.dashboard import (
     HeatmapOut,
@@ -22,7 +22,13 @@ from app.schemas.dashboard import (
     WizardResultOut,
 )
 
-# Templates dir lives at <repo>/app/templates
+# Visuals are optional - degrade gracefully
+try:
+    from app.services.visuals_service import HeroContext, VisualsService
+    _VISUALS_OK = True
+except Exception:
+    _VISUALS_OK = False
+
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
@@ -30,27 +36,27 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 api = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard-api"])
 
 
-# --- AUTH STUB --------------------------------------------------------------
-# Replace with the real dependency from your auth module (e.g. get_current_user).
 def get_current_user_id(request: Request) -> int:
-    user_id = request.session.get("user_id") if hasattr(request, "session") else None
-    if user_id is None:
-        # Dev fallback: header X-User-Id; in prod raise 401.
-        hv = request.headers.get("X-User-Id")
-        if hv and hv.isdigit():
-            return int(hv)
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    return int(user_id)
+    if hasattr(request, "session"):
+        uid = request.session.get("user_id")
+        if uid is not None:
+            return int(uid)
+    hv = request.headers.get("X-User-Id")
+    if hv and hv.isdigit():
+        return int(hv)
+    return 1  # dev fallback
 
 
-# --- COMPLIANCE RUNNER WIRE -------------------------------------------------
+def _hero(db: Session, user_id: int, page: str) -> Optional[dict]:
+    if not _VISUALS_OK:
+        return None
+    try:
+        return VisualsService(db).hero_payload(HeroContext(user_id=user_id, page=page))
+    except Exception:
+        return None
+
+
 def _compliance_runner_factory():
-    """
-    Returns a callable(label_text, market) -> dict with keys:
-      status, score, missing, warnings, raw, duration_ms
-    Wires to your existing engine in main.py / services. Falls back to a stub
-    so the dashboard works end-to-end even before integration.
-    """
     try:
         from app.services.compliance import run_compliance  # type: ignore
         return run_compliance
@@ -64,11 +70,8 @@ def _compliance_runner_factory():
             score = max(0.0, 100.0 - 15.0 * len(missing))
             status = "compliant" if score >= 90 else ("warning" if score >= 60 else "non_compliant")
             return {
-                "status": status,
-                "score": score,
-                "missing": missing,
-                "warnings": [],
-                "raw": {"market": market, "len": len(label_text)},
+                "status": status, "score": score, "missing": missing,
+                "warnings": [], "raw": {"market": market, "len": len(label_text)},
                 "duration_ms": 42,
             }
         return _stub
@@ -83,9 +86,10 @@ def page_home(request: Request, db: Session = Depends(get_db)):
     user_id = get_current_user_id(request)
     svc = DashboardService(db)
     kpi = svc.get_kpi(user_id)
+    hero = _hero(db, user_id, "dashboard")
     return templates.TemplateResponse(
         "dashboard/home.html",
-        {"request": request, "kpi": kpi, "active": "home"},
+        {"request": request, "kpi": kpi, "active": "dashboard", "hero": hero},
     )
 
 
@@ -94,9 +98,10 @@ def page_timeline(request: Request, db: Session = Depends(get_db)):
     user_id = get_current_user_id(request)
     svc = DashboardService(db)
     audits = svc.list_audits(user_id, limit=100)
+    hero = _hero(db, user_id, "audit")
     return templates.TemplateResponse(
         "dashboard/timeline.html",
-        {"request": request, "audits": audits, "active": "timeline"},
+        {"request": request, "audits": audits, "active": "timeline", "hero": hero},
     )
 
 
@@ -105,9 +110,10 @@ def page_catalog(request: Request, db: Session = Depends(get_db)):
     user_id = get_current_user_id(request)
     svc = DashboardService(db)
     products = svc.list_products(user_id)
+    hero = _hero(db, user_id, "dashboard")
     return templates.TemplateResponse(
         "dashboard/catalog.html",
-        {"request": request, "products": products, "active": "catalog"},
+        {"request": request, "products": products, "active": "catalog", "hero": hero},
     )
 
 
@@ -116,17 +122,20 @@ def page_heatmap(request: Request, db: Session = Depends(get_db)):
     user_id = get_current_user_id(request)
     svc = DashboardService(db)
     data = svc.heatmap(user_id)
+    hero = _hero(db, user_id, "audit")
     return templates.TemplateResponse(
         "dashboard/heatmap.html",
-        {"request": request, "data": data, "active": "heatmap"},
+        {"request": request, "data": data, "active": "heatmap", "hero": hero},
     )
 
 
 @router.get("/wizard", response_class=HTMLResponse)
-def page_wizard(request: Request):
+def page_wizard(request: Request, db: Session = Depends(get_db)):
+    user_id = get_current_user_id(request)
+    hero = _hero(db, user_id, "wizard")
     return templates.TemplateResponse(
         "dashboard/wizard.html",
-        {"request": request, "active": "wizard"},
+        {"request": request, "active": "wizard", "hero": hero},
     )
 
 
