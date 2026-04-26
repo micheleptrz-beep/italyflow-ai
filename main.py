@@ -47,6 +47,11 @@ app = FastAPI(title=settings.APP_NAME, version="3.0.0")
 from dashboard import dashboard_router
 app.include_router(dashboard_router)
 
+# --- ItalyFlow AI Dashboard (Section 1) ---
+from app.routers.dashboard import router as dashboard_router, api as dashboard_api
+app.include_router(dashboard_router)
+app.include_router(dashboard_api)
+
 client = genai.Client(api_key=settings.GOOGLE_API_KEY)
 executor = ThreadPoolExecutor(max_workers=5)
 
