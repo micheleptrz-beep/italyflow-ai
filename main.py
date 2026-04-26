@@ -41,10 +41,80 @@ logger = logging.getLogger("italyflow")
 # ============================================================================
 # APP INIT
 # ============================================================================
-app = FastAPI(title=settings.APP_NAME, version="3.0.0")
+# ============================================================================
+# ItalyFlow AI - Section 2 + Unified Home + Visuals (PASTE BLOCK)
+# Place this AFTER the "app = FastAPI(...)" line in main.py.
+# Replace any older Section 2 block you may have.
+# ============================================================================
 
-# --- ItalyFlow AI Visual Assets (Section 1.5) ---
-from fastapi.staticfiles import StaticFiles
+from pathlib import Path as _Path
+from fastapi.staticfiles import StaticFiles as _StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware as _BHM
+from starlette.responses import Response as _Resp
+
+# --- Static mount for hero images and certificates ---
+_static_dir = _Path(__file__).resolve().parent / "static"
+_static_dir.mkdir(parents=True, exist_ok=True)
+try:
+    app.mount("/static", _StaticFiles(directory=str(_static_dir)), name="static")
+except Exception as _e:
+    print("WARN: /static mount skipped:", _e)
+
+# --- Aggressive cache headers for /static/visuals/* ---
+class _IfStaticCache(_BHM):
+    async def dispatch(self, request, call_next):
+        resp: _Resp = await call_next(request)
+        if request.url.path.startswith("/static/visuals/"):
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        return resp
+
+try:
+    app.add_middleware(_IfStaticCache)
+except Exception:
+    pass
+
+# --- Unified home router ('/' landing) ---
+from app.routers.home import router as if_home_router
+app.include_router(if_home_router)
+
+# --- Visuals API ---
+from app.routers.visuals import api as if_visuals_api
+app.include_router(if_visuals_api)
+
+# --- Section 2: Labels, Compliance, Translation, Collaboration ---
+from app.routers.labels import router as if_labels_router, api as if_labels_api
+from app.routers.compliance import router as if_compliance_router, api as if_compliance_api
+from app.routers.translation import api as if_translation_api
+from app.routers.collaboration import api as if_collab_api
+
+app.include_router(if_labels_router)
+app.include_router(if_labels_api)
+app.include_router(if_compliance_router)
+app.include_router(if_compliance_api)
+app.include_router(if_translation_api)
+app.include_router(if_collab_api)
+
+# --- Background scheduler (regulatory tracker) ---
+from app.scheduler import start_scheduler as _if_start_sched, shutdown_scheduler as _if_stop_sched
+
+@app.on_event("startup")
+def _if_startup():
+    try:
+        _if_start_sched()
+    except Exception as _e:
+        print("WARN: scheduler not started:", _e)
+
+@app.on_event("shutdown")
+def _if_shutdown():
+    try:
+        _if_stop_sched()
+    except Exception:
+        pass
+
+# ============================================================================
+# END Section 2 + Visuals + Home block
+# ============================================================================
+
 from pathlib import Path
 _static_dir = Path(__file__).resolve().parent / "static"
 _static_dir.mkdir(parents=True, exist_ok=True)
