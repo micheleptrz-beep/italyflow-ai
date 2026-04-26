@@ -14,10 +14,10 @@ def main() -> None:
     Base.metadata.create_all(
         bind=engine,
         tables=[
-            _m.Product.__table__,
-            _m.Audit.__table__,
-            _m.KpiCache.__table__,
-            _m.UserVisualPreference.__table__,
+            _m.IfProduct.__table__,
+            _m.IfAudit.__table__,
+            _m.IfKpiCache.__table__,
+            _m.IfUserVisualPreference.__table__,
         ],
     )
     print("Done.")
