@@ -1,6 +1,7 @@
 """
 ItalyFlow AI - Dashboard router (P0). ASCII only.
 HTML (Jinja2 + HTMX) + JSON API endpoints. Hero background auto-injected.
+Safe session access (works without SessionMiddleware).
 """
 from __future__ import annotations
 
@@ -22,7 +23,6 @@ from app.schemas.dashboard import (
     WizardResultOut,
 )
 
-# Visuals are optional - degrade gracefully
 try:
     from app.services.visuals_service import HeroContext, VisualsService
     _VISUALS_OK = True
@@ -37,14 +37,19 @@ api = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard-api"])
 
 
 def get_current_user_id(request: Request) -> int:
-    if hasattr(request, "session"):
-        uid = request.session.get("user_id")
-        if uid is not None:
-            return int(uid)
+    """Safe user-id resolver: checks scope (avoid AssertionError) then header."""
+    try:
+        scope = getattr(request, "scope", {})
+        if isinstance(scope, dict) and "session" in scope:
+            uid = scope["session"].get("user_id")
+            if uid is not None:
+                return int(uid)
+    except Exception:
+        pass
     hv = request.headers.get("X-User-Id")
     if hv and hv.isdigit():
         return int(hv)
-    return 1  # dev fallback
+    return 1
 
 
 def _hero(db: Session, user_id: int, page: str) -> Optional[dict]:
@@ -69,77 +74,60 @@ def _compliance_runner_factory():
                     missing.append(kw)
             score = max(0.0, 100.0 - 15.0 * len(missing))
             status = "compliant" if score >= 90 else ("warning" if score >= 60 else "non_compliant")
-            return {
-                "status": status, "score": score, "missing": missing,
-                "warnings": [], "raw": {"market": market, "len": len(label_text)},
-                "duration_ms": 42,
-            }
+            return {"status": status, "score": score, "missing": missing,
+                    "warnings": [], "raw": {"market": market, "len": len(label_text)},
+                    "duration_ms": 42}
         return _stub
 
 
 COMPLIANCE_RUNNER = _compliance_runner_factory()
 
 
-# ============================ HTML PAGES ====================================
 @router.get("/", response_class=HTMLResponse)
 def page_home(request: Request, db: Session = Depends(get_db)):
     user_id = get_current_user_id(request)
     svc = DashboardService(db)
     kpi = svc.get_kpi(user_id)
     hero = _hero(db, user_id, "dashboard")
-    return templates.TemplateResponse(
-        "dashboard/home.html",
-        {"request": request, "kpi": kpi, "active": "dashboard", "hero": hero},
-    )
+    return templates.TemplateResponse("dashboard/home.html",
+        {"request": request, "kpi": kpi, "active": "dashboard", "hero": hero})
 
 
 @router.get("/timeline", response_class=HTMLResponse)
 def page_timeline(request: Request, db: Session = Depends(get_db)):
     user_id = get_current_user_id(request)
-    svc = DashboardService(db)
-    audits = svc.list_audits(user_id, limit=100)
+    audits = DashboardService(db).list_audits(user_id, limit=100)
     hero = _hero(db, user_id, "audit")
-    return templates.TemplateResponse(
-        "dashboard/timeline.html",
-        {"request": request, "audits": audits, "active": "timeline", "hero": hero},
-    )
+    return templates.TemplateResponse("dashboard/timeline.html",
+        {"request": request, "audits": audits, "active": "timeline", "hero": hero})
 
 
 @router.get("/catalog", response_class=HTMLResponse)
 def page_catalog(request: Request, db: Session = Depends(get_db)):
     user_id = get_current_user_id(request)
-    svc = DashboardService(db)
-    products = svc.list_products(user_id)
+    products = DashboardService(db).list_products(user_id)
     hero = _hero(db, user_id, "dashboard")
-    return templates.TemplateResponse(
-        "dashboard/catalog.html",
-        {"request": request, "products": products, "active": "catalog", "hero": hero},
-    )
+    return templates.TemplateResponse("dashboard/catalog.html",
+        {"request": request, "products": products, "active": "catalog", "hero": hero})
 
 
 @router.get("/heatmap", response_class=HTMLResponse)
 def page_heatmap(request: Request, db: Session = Depends(get_db)):
     user_id = get_current_user_id(request)
-    svc = DashboardService(db)
-    data = svc.heatmap(user_id)
+    data = DashboardService(db).heatmap(user_id)
     hero = _hero(db, user_id, "audit")
-    return templates.TemplateResponse(
-        "dashboard/heatmap.html",
-        {"request": request, "data": data, "active": "heatmap", "hero": hero},
-    )
+    return templates.TemplateResponse("dashboard/heatmap.html",
+        {"request": request, "data": data, "active": "heatmap", "hero": hero})
 
 
 @router.get("/wizard", response_class=HTMLResponse)
 def page_wizard(request: Request, db: Session = Depends(get_db)):
     user_id = get_current_user_id(request)
     hero = _hero(db, user_id, "wizard")
-    return templates.TemplateResponse(
-        "dashboard/wizard.html",
-        {"request": request, "active": "wizard", "hero": hero},
-    )
+    return templates.TemplateResponse("dashboard/wizard.html",
+        {"request": request, "active": "wizard", "hero": hero})
 
 
-# ============================ JSON API ======================================
 @api.get("/kpi", response_model=KpiCardOut)
 def api_kpi(request: Request, db: Session = Depends(get_db)):
     user_id = get_current_user_id(request)
@@ -156,20 +144,13 @@ def api_kpi(request: Request, db: Session = Depends(get_db)):
 
 
 @api.get("/audits")
-def api_audits(
-    request: Request,
-    market: Optional[str] = None,
-    product_id: Optional[int] = None,
-    status: Optional[str] = None,
-    q: Optional[str] = None,
-    limit: int = Query(50, ge=1, le=200),
-    offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
-):
+def api_audits(request: Request, market: Optional[str] = None,
+               product_id: Optional[int] = None, status: Optional[str] = None,
+               q: Optional[str] = None, limit: int = Query(50, ge=1, le=200),
+               offset: int = Query(0, ge=0), db: Session = Depends(get_db)):
     user_id = get_current_user_id(request)
-    rows = DashboardService(db).list_audits(
-        user_id, market=market, product_id=product_id, status=status, q=q, limit=limit, offset=offset
-    )
+    rows = DashboardService(db).list_audits(user_id, market=market, product_id=product_id,
+        status=status, q=q, limit=limit, offset=offset)
     return JSONResponse(content={"items": rows, "count": len(rows)})
 
 
@@ -180,20 +161,13 @@ def api_heatmap(request: Request, db: Session = Depends(get_db)):
 
 
 @api.post("/wizard", response_model=WizardResultOut)
-def api_wizard(
-    request: Request,
-    step1: WizardStep1,
-    step2: WizardStep2,
-    db: Session = Depends(get_db),
-):
+def api_wizard(request: Request, step1: WizardStep1, step2: WizardStep2,
+               db: Session = Depends(get_db)):
     user_id = get_current_user_id(request)
     result = DashboardService(db).wizard_create(
-        user_id=user_id,
-        product_name=step1.product_name,
-        category=step1.category,
-        region=step1.region,
-        label_text=step1.label_text,
-        markets=step2.markets,
+        user_id=user_id, product_name=step1.product_name, category=step1.category,
+        region=step1.region, label_text=step1.label_text, markets=step2.markets,
         compliance_runner=COMPLIANCE_RUNNER,
     )
     return WizardResultOut(**result)
+
