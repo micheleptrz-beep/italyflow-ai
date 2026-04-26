@@ -44,7 +44,6 @@ logger = logging.getLogger("italyflow")
 # ============================================================================
 # ItalyFlow AI - Section 2 + Unified Home + Visuals (PASTE BLOCK)
 # Place this AFTER the "app = FastAPI(...)" line in main.py.
-# Replace any older Section 2 block you may have.
 # ============================================================================
 
 from pathlib import Path as _Path
@@ -73,47 +72,90 @@ try:
 except Exception:
     pass
 
-# --- Unified home router ('/' landing) ---
-from app.routers.home import router as if_home_router
-app.include_router(if_home_router)
+# --- Unified home router ('/' landing) - WITH GUARD ---
+try:
+    from app.routers.home import router as if_home_router
+    app.include_router(if_home_router)
+    print("OK: home router loaded")
+except Exception as _e:
+    print("WARN: home router NOT loaded -", _e)
 
 # --- Visuals API ---
-from app.routers.visuals import api as if_visuals_api
-app.include_router(if_visuals_api)
+try:
+    from app.routers.visuals import api as if_visuals_api
+    app.include_router(if_visuals_api)
+    print("OK: visuals API loaded")
+except Exception as _e:
+    print("WARN: visuals API NOT loaded -", _e)
 
-# --- Section 2: Labels, Compliance, Translation, Collaboration ---
-from app.routers.labels import router as if_labels_router, api as if_labels_api
-from app.routers.compliance import router as if_compliance_router, api as if_compliance_api
-from app.routers.translation import api as if_translation_api
-from app.routers.collaboration import api as if_collab_api
+# --- Section 1 dashboard ---
+try:
+    from app.routers.dashboard import router as if_dashboard_router, api as if_dashboard_api
+    app.include_router(if_dashboard_router)
+    app.include_router(if_dashboard_api)
+    print("OK: dashboard router loaded")
+except Exception as _e:
+    print("WARN: dashboard router NOT loaded -", _e)
 
-app.include_router(if_labels_router)
-app.include_router(if_labels_api)
-app.include_router(if_compliance_router)
-app.include_router(if_compliance_api)
-app.include_router(if_translation_api)
-app.include_router(if_collab_api)
+# --- Section 2: Labels ---
+try:
+    from app.routers.labels import router as if_labels_router, api as if_labels_api
+    app.include_router(if_labels_router)
+    app.include_router(if_labels_api)
+    print("OK: labels router loaded")
+except Exception as _e:
+    print("WARN: labels router NOT loaded -", _e)
+
+# --- Section 2: Compliance ---
+try:
+    from app.routers.compliance import router as if_compliance_router, api as if_compliance_api
+    app.include_router(if_compliance_router)
+    app.include_router(if_compliance_api)
+    print("OK: compliance router loaded")
+except Exception as _e:
+    print("WARN: compliance router NOT loaded -", _e)
+
+# --- Section 2: Translation ---
+try:
+    from app.routers.translation import api as if_translation_api
+    app.include_router(if_translation_api)
+    print("OK: translation router loaded")
+except Exception as _e:
+    print("WARN: translation router NOT loaded -", _e)
+
+# --- Section 2: Collaboration ---
+try:
+    from app.routers.collaboration import api as if_collab_api
+    app.include_router(if_collab_api)
+    print("OK: collaboration router loaded")
+except Exception as _e:
+    print("WARN: collaboration router NOT loaded -", _e)
 
 # --- Background scheduler (regulatory tracker) ---
-from app.scheduler import start_scheduler as _if_start_sched, shutdown_scheduler as _if_stop_sched
+try:
+    from app.scheduler import start_scheduler as _if_start_sched, shutdown_scheduler as _if_stop_sched
 
-@app.on_event("startup")
-def _if_startup():
-    try:
-        _if_start_sched()
-    except Exception as _e:
-        print("WARN: scheduler not started:", _e)
+    @app.on_event("startup")
+    def _if_startup():
+        try:
+            _if_start_sched()
+        except Exception as _e:
+            print("WARN: scheduler not started:", _e)
 
-@app.on_event("shutdown")
-def _if_shutdown():
-    try:
-        _if_stop_sched()
-    except Exception:
-        pass
+    @app.on_event("shutdown")
+    def _if_shutdown():
+        try:
+            _if_stop_sched()
+        except Exception:
+            pass
+    print("OK: scheduler hooks registered")
+except Exception as _e:
+    print("WARN: scheduler module NOT loaded -", _e)
 
 # ============================================================================
 # END Section 2 + Visuals + Home block
 # ============================================================================
+
 
 from pathlib import Path
 _static_dir = Path(__file__).resolve().parent / "static"
