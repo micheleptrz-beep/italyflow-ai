@@ -1,5 +1,6 @@
 """
-ItalyFlow AI - Certificate manager service (Section 2.2). ASCII only.
+ItalyFlow AI - Certificate manager SERVICE (Section 2.2). ASCII only.
+This file imports models. It must NOT be imported by any model file.
 """
 from __future__ import annotations
 
@@ -37,12 +38,15 @@ class CertificateService:
             file_path=str(out_path), issued_at=issued_at, expires_at=expires_at,
             notes=notes,
         )
-        self.db.add(cert); self.db.commit(); self.db.refresh(cert)
+        self.db.add(cert)
+        self.db.commit()
+        self.db.refresh(cert)
         return cert
 
     def list_for_user(self, user_id: int) -> list[IfCertificate]:
         return list(self.db.scalars(
-            select(IfCertificate).where(IfCertificate.user_id == user_id)
+            select(IfCertificate)
+            .where(IfCertificate.user_id == user_id)
             .order_by(IfCertificate.expires_at.asc().nulls_last())
         ))
 
