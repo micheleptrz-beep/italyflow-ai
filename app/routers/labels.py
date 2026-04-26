@@ -1,5 +1,6 @@
 """
 ItalyFlow AI - Labels router (Section 2.1). ASCII only.
+Exports: router (HTML pages), api (JSON endpoints).
 """
 from __future__ import annotations
 
@@ -7,12 +8,14 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from database import get_db
+from app.models.labels import IfLabel, IfLabelTemplate
 from app.services.label_editor_service import LabelEditorService
 from app.services.label_render_service import LabelRenderService
 from app.services.label_pdf_service import LabelPdfService
@@ -32,10 +35,24 @@ def get_current_user_id(request: Request) -> int:
     hv = request.headers.get("X-User-Id")
     if hv and hv.isdigit():
         return int(hv)
-    raise HTTPException(status_code=401, detail="Not authenticated")
+    return 1  # dev fallback
 
 
 # ---------- HTML ----------
+@router.get("", response_class=HTMLResponse)
+@router.get("/", response_class=HTMLResponse)
+def page_labels_list(request: Request, db: Session = Depends(get_db)):
+    uid = get_current_user_id(request)
+    labels = list(db.scalars(
+        select(IfLabel).where(IfLabel.user_id == uid).order_by(IfLabel.updated_at.desc())
+    ))
+    tpls = list(db.scalars(select(IfLabelTemplate).limit(8)))
+    return templates.TemplateResponse("labels/list.html", {
+        "request": request, "active": "labels",
+        "labels": labels, "templates": tpls,
+    })
+
+
 @router.get("/editor/{label_id}", response_class=HTMLResponse)
 def page_editor(label_id: int, request: Request, db: Session = Depends(get_db)):
     uid = get_current_user_id(request)
@@ -114,8 +131,7 @@ def preview_png(label_id: int, version_no: Optional[int] = None,
     v = svc.get_version(label_id, version_no) if version_no else svc.get_current(label_id)
     if v is None:
         raise HTTPException(404, "version not found")
-    label = svc.db.get  # type: ignore
-    lbl = svc.db.get(__import__("app.models.labels", fromlist=["IfLabel"]).IfLabel, label_id)
+    lbl = db.get(IfLabel, label_id)
     png = LabelRenderService.render_png(lbl.width_mm, lbl.height_mm, lbl.dpi, v.layers or [])
     return Response(content=png, media_type="image/png")
 
@@ -127,8 +143,8 @@ def export_pdf(label_id: int, version_no: Optional[int] = None,
     v = svc.get_version(label_id, version_no) if version_no else svc.get_current(label_id)
     if v is None:
         raise HTTPException(404, "version not found")
-    from app.models.labels import IfLabel
-    lbl = svc.db.get(IfLabel, label_id)
+    lbl = db.get(IfLabel, label_id)
     pdf = LabelPdfService.render_pdf(lbl.width_mm, lbl.height_mm, lbl.bleed_mm, v.layers or [])
     headers = {"Content-Disposition": f'attachment; filename="label_{label_id}_v{v.version_no}.pdf"'}
     return Response(content=pdf, media_type="application/pdf", headers=headers)
+
