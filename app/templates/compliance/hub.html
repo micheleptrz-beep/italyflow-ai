@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-xl font-semibold mb-4">Compliance hub</h1>
+
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="lg:col-span-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold">Regulatory changes</h2>
+      <button hx-post="/api/v1/compliance/refresh" hx-swap="none"
+              class="text-xs px-2 py-1 rounded bg-brand text-white">Refresh now</button>
+    </div>
+    <ul class="divide-y divide-slate-100 dark:divide-slate-800">
+      {% for c in changes %}
+      <li class="py-3">
+        <div class="flex items-center justify-between">
+          <a href="{{ c.url or '#' }}" target="_blank" class="font-medium hover:underline">{{ c.title }}</a>
+          {% set sev = c.severity.value if c.severity else 'info' %}
+          <span class="pill {% if sev=='critical' or sev=='high' %}pill-bad{% elif sev=='medium' %}pill-warn{% else %}pill-pending{% endif %}">{{ sev }}</span>
+        </div>
+        <div class="text-xs text-slate-500">{{ c.source|upper }} - {{ c.market }} - {{ c.detected_at.strftime('%Y-%m-%d') }}</div>
+        <p class="text-sm text-slate-700 dark:text-slate-300 mt-1">{{ c.summary }}</p>
+      </li>
+      {% else %}
+      <li class="py-6 text-center text-slate-500 text-sm">No changes detected yet.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+    <h2 class="font-semibold mb-3">Certificates</h2>
+    <div class="text-xs text-slate-500 mb-2">Expiring soon (60d): {{ expiring|length }}</div>
+    <ul class="space-y-2 text-sm">
+      {% for c in certs %}
+      <li class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1">
+        <span>{{ c.type.value|upper }} - {{ c.issuer or 'n/a' }}</span>
+        <span class="text-xs text-slate-500">{{ c.expires_at.strftime('%Y-%m-%d') if c.expires_at else 'no expiry' }}</span>
+      </li>
+      {% else %}
+      <li class="text-slate-500 text-xs">No certificates uploaded.</li>
+      {% endfor %}
+    </ul>
+    <form class="mt-4 space-y-2 text-xs" enctype="multipart/form-data"
+          hx-post="/api/v1/compliance/certificates" hx-encoding="multipart/form-data" hx-swap="none">
+      <select name="type" class="w-full px-2 py-1 border rounded">
+        <option value="bio">BIO</option><option value="dop">DOP</option>
+        <option value="igp">IGP</option><option value="halal">HALAL</option>
+        <option value="kosher">KOSHER</option><option value="gluten_free">Gluten free</option>
+        <option value="non_gmo">Non-GMO</option><option value="other">Other</option>
+      </select>
+      <input type="text" name="issuer" placeholder="Issuer" class="w-full px-2 py-1 border rounded">
+      <input type="date" name="expires_at" class="w-full px-2 py-1 border rounded">
+      <input type="file" name="file" class="w-full text-xs" required>
+      <button class="w-full px-2 py-1 rounded bg-brand text-white">Upload certificate</button>
+    </form>
+  </div>
+</section>
+{% endblock %}
