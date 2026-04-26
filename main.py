@@ -43,13 +43,23 @@ logger = logging.getLogger("italyflow")
 # ============================================================================
 app = FastAPI(title=settings.APP_NAME, version="3.0.0")
 
-# --- ItalyFlow AI Dashboard (Section 1) ---
-from app.routers.dashboard import router as dashboard_router, api as dashboard_api
-app.include_router(dashboard_router)
-app.include_router(dashboard_api)
+# --- ItalyFlow AI Visual Assets (Section 1.5) ---
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+_static_dir = Path(__file__).resolve().parent / "static"
+_static_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+
+from app.routers.visuals import api as visuals_api
+app.include_router(visuals_api)
+
+
+
 
 client = genai.Client(api_key=settings.GOOGLE_API_KEY)
 executor = ThreadPoolExecutor(max_workers=5)
+
+
 
 # ============================================================================
 # CONSTANTS
