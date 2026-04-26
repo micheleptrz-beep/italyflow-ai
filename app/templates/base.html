@@ -5,44 +5,107 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ItalyFlow AI</title>
+  <title>{% block title %}ItalyFlow AI{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230f766e'/><text x='16' y='22' text-anchor='middle' font-size='18' font-family='Arial' fill='white' font-weight='bold'>IF</text></svg>">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = { darkMode: 'class', theme: { extend: { colors: { brand: { DEFAULT: '#0f766e', dark: '#134e4a' } } } } };
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { DEFAULT: '#0f766e', dark: '#134e4a', light: '#5eead4' },
+            italy: { red: '#cf2027', green: '#009247', cream: '#faf6ef', gold: '#c8a04a' }
+          },
+          fontFamily: {
+            display: ['Playfair Display', 'Georgia', 'serif'],
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    };
   </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@500;700&display=swap" rel="stylesheet">
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-    .pill { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium; }
-    .pill-ok { @apply bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200; }
-    .pill-warn { @apply bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200; }
-    .pill-bad { @apply bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200; }
-    .pill-pending { @apply bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200; }
+    body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+    .pill { display:inline-flex; align-items:center; gap:.25rem; padding:.125rem .5rem; border-radius:9999px; font-size:.7rem; font-weight:500; }
+    .pill-ok { background:#d1fae5; color:#065f46; }
+    .pill-warn { background:#fef3c7; color:#92400e; }
+    .pill-bad { background:#fee2e2; color:#991b1b; }
+    .pill-pending { background:#e2e8f0; color:#334155; }
+    .dark .pill-ok { background:rgba(6,95,70,.3); color:#a7f3d0; }
+    .dark .pill-warn { background:rgba(146,64,14,.3); color:#fde68a; }
+    .dark .pill-bad { background:rgba(153,27,27,.3); color:#fecaca; }
+    .dark .pill-pending { background:#334155; color:#cbd5e1; }
+    .nav-link { padding:.375rem .75rem; border-radius:.5rem; font-size:.875rem; transition: all .15s; }
+    .nav-link:hover { background:#f1f5f9; }
+    .dark .nav-link:hover { background:#1e293b; }
+    .nav-active { background:#0f766e; color:white !important; }
+    .nav-active:hover { background:#134e4a; }
+    .if-flag-bar { height:3px; background:linear-gradient(90deg,#009247 0 33%,#fff 33% 66%,#cf2027 66%); }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen">
-  <header class="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-800">
-    <div class="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-      <a href="/dashboard/" class="flex items-center gap-2 font-semibold">
-        <span class="inline-block w-6 h-6 rounded bg-brand"></span> ItalyFlow AI
+
+  <header class="sticky top-0 z-30 bg-white/90 dark:bg-slate-900/90 backdrop-blur border-b border-slate-200 dark:border-slate-800">
+    <div class="if-flag-bar"></div>
+    <div class="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+      <a href="/" class="flex items-center gap-2 font-display font-bold text-lg whitespace-nowrap">
+        <span class="inline-block w-7 h-7 rounded bg-brand text-white grid place-items-center text-xs font-bold">IF</span>
+        ItalyFlow <span class="text-brand">AI</span>
       </a>
-      <nav class="hidden md:flex gap-1 text-sm">
-        {% set nav = [('home','/dashboard/','Home'),('timeline','/dashboard/timeline','Timeline'),('catalog','/dashboard/catalog','Catalog'),('heatmap','/dashboard/heatmap','Heatmap'),('wizard','/dashboard/wizard','New Audit')] %}
+      <nav class="hidden lg:flex gap-1 text-sm">
+        {% set nav = [
+          ('home','/','Home'),
+          ('dashboard','/dashboard/','Dashboard'),
+          ('timeline','/dashboard/timeline','Audits'),
+          ('catalog','/dashboard/catalog','Products'),
+          ('heatmap','/dashboard/heatmap','Heatmap'),
+          ('compliance','/compliance/hub','Compliance'),
+          ('labels','/labels','Labels'),
+          ('wizard','/dashboard/wizard','New Audit')
+        ] %}
         {% for key, href, label in nav %}
-        <a href="{{ href }}"
-           class="px-3 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800
-           {% if active == key %}bg-slate-100 dark:bg-slate-800 font-medium{% endif %}">{{ label }}</a>
+        <a href="{{ href }}" class="nav-link {% if active == key %}nav-active{% endif %}">{{ label }}</a>
         {% endfor %}
       </nav>
-      <button @click="dark = !dark" class="text-xs px-2 py-1 rounded border border-slate-300 dark:border-slate-700">
-        <span x-show="!dark">Dark</span><span x-show="dark">Light</span>
-      </button>
+      <div class="flex items-center gap-2">
+        <button @click="dark = !dark" class="text-xs px-2 py-1 rounded border border-slate-300 dark:border-slate-700"
+                title="Toggle theme">
+          <span x-show="!dark">Dark</span><span x-show="dark">Light</span>
+        </button>
+        <div class="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-xs">
+          <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span class="text-slate-600 dark:text-slate-300">User #1</span>
+        </div>
+      </div>
     </div>
+    <nav class="lg:hidden border-t border-slate-200 dark:border-slate-800 overflow-x-auto">
+      <div class="flex gap-1 px-4 py-2 text-sm whitespace-nowrap">
+        {% for key, href, label in nav %}
+        <a href="{{ href }}" class="nav-link {% if active == key %}nav-active{% endif %}">{{ label }}</a>
+        {% endfor %}
+      </div>
+    </nav>
   </header>
+
   <main class="max-w-7xl mx-auto px-4 py-6">
     {% block content %}{% endblock %}
   </main>
+
+  <footer class="mt-16 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+    <div class="max-w-7xl mx-auto px-4 py-6 text-xs text-slate-500 flex flex-col md:flex-row items-center justify-between gap-3">
+      <div>ItalyFlow AI &middot; Compliance &amp; export intelligence for Made in Italy &middot; v3.0</div>
+      <div class="flex gap-3">
+        <a href="/docs" class="hover:text-brand">API docs</a>
+        <a href="/api/v1/dashboard/kpi" class="hover:text-brand">KPI JSON</a>
+        <span class="text-italy-green">IT</span><span class="text-slate-300">|</span>
+        <span>EN</span>
+      </div>
+    </div>
+  </footer>
 </body>
 </html>
