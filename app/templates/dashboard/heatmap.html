@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-xl font-semibold mb-4">Compliance heatmap</h1>
+<div class="overflow-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+  <table class="text-xs">
+    <thead>
+      <tr class="bg-slate-50 dark:bg-slate-800/50">
+        <th class="px-3 py-2 text-left">Product \ Market</th>
+        {% for m in data.markets %}<th class="px-3 py-2">{{ m }}</th>{% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% set grouped = {} %}
+      {% for c in data.cells %}{% if grouped.update({c.product_name: grouped.get(c.product_name, {})}) %}{% endif %}{% if grouped[c.product_name].update({c.market: c}) %}{% endif %}{% endfor %}
+      {% for pname, row in grouped.items() %}
+      <tr class="border-t border-slate-100 dark:border-slate-800">
+        <td class="px-3 py-2 font-medium whitespace-nowrap">{{ pname }}</td>
+        {% for m in data.markets %}
+          {% set c = row.get(m) %}
+          {% set bg = 'bg-slate-100 dark:bg-slate-800' %}
+          {% if c %}
+            {% if c.status == 'compliant' %}{% set bg = 'bg-emerald-200/70 dark:bg-emerald-800/40' %}
+            {% elif c.status == 'warning' %}{% set bg = 'bg-amber-200/70 dark:bg-amber-800/40' %}
+            {% elif c.status == 'non_compliant' %}{% set bg = 'bg-rose-200/70 dark:bg-rose-800/40' %}{% endif %}
+          {% endif %}
+          <td class="px-3 py-2 text-center {{ bg }}" title="{{ c.status if c else 'no audit' }} - score {{ c.score if c else 0 }}">
+            {{ '%.0f'|format(c.score) if c else '-' }}
+          </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
