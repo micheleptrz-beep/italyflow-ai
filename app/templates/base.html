@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en" x-data="{ dark: localStorage.getItem('if_dark') === '1' }"
+      x-init="$watch('dark', v => localStorage.setItem('if_dark', v ? '1' : '0'))"
+      :class="{ 'dark': dark }">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ItalyFlow AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class', theme: { extend: { colors: { brand: { DEFAULT: '#0f766e', dark: '#134e4a' } } } } };
+  </script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .pill { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium; }
+    .pill-ok { @apply bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200; }
+    .pill-warn { @apply bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200; }
+    .pill-bad { @apply bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200; }
+    .pill-pending { @apply bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen">
+  <header class="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur border-b border-slate-200 dark:border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="/dashboard/" class="flex items-center gap-2 font-semibold">
+        <span class="inline-block w-6 h-6 rounded bg-brand"></span> ItalyFlow AI
+      </a>
+      <nav class="hidden md:flex gap-1 text-sm">
+        {% set nav = [('home','/dashboard/','Home'),('timeline','/dashboard/timeline','Timeline'),('catalog','/dashboard/catalog','Catalog'),('heatmap','/dashboard/heatmap','Heatmap'),('wizard','/dashboard/wizard','New Audit')] %}
+        {% for key, href, label in nav %}
+        <a href="{{ href }}"
+           class="px-3 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800
+           {% if active == key %}bg-slate-100 dark:bg-slate-800 font-medium{% endif %}">{{ label }}</a>
+        {% endfor %}
+      </nav>
+      <button @click="dark = !dark" class="text-xs px-2 py-1 rounded border border-slate-300 dark:border-slate-700">
+        <span x-show="!dark">Dark</span><span x-show="dark">Light</span>
+      </button>
+    </div>
+  </header>
+  <main class="max-w-7xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
