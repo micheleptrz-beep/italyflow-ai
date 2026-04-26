@@ -1,8 +1,15 @@
 """
 ItalyFlow AI - Dashboard models (P0).
 ASCII-only source. Integrates with the existing Base in database.py.
-Tables use extend_existing=True so this module can be re-imported safely
-even if a legacy "products" table is already declared elsewhere.
+
+Tables are namespaced with the "if_" prefix to avoid clashes with legacy
+tables on the same MetaData (e.g. an existing "products" table). The Python
+class names also use the "If" prefix so SQLAlchemy class registry does not
+collide with any legacy "Product" / "Audit" classes already declared on the
+same Base.
+
+Backward-compatible aliases (Product, Audit, KpiCache, UserVisualPreference)
+are exported at the bottom so existing imports keep working.
 """
 from __future__ import annotations
 
@@ -20,8 +27,6 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
-    Text,
-    UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
 
@@ -46,13 +51,7 @@ class MarketCode(str, enum.Enum):
     AE_ESMA = "AE_ESMA"
 
 
-# NOTE: tables are namespaced with the "if_" prefix to avoid clashes with any
-# legacy tables (e.g. a pre-existing "products" table) declared elsewhere on
-# the same SQLAlchemy Base / MetaData. extend_existing is also enabled as a
-# defensive measure in case modules get imported twice.
-
-
-class Product(Base):
+class IfProduct(Base):
     __tablename__ = "if_products"
     __table_args__ = (
         Index("ix_if_products_user_category", "user_id", "category"),
@@ -76,10 +75,14 @@ class Product(Base):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
-    audits = relationship("Audit", back_populates="product", cascade="all, delete-orphan")
+    audits = relationship(
+        "IfAudit",
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
 
 
-class Audit(Base):
+class IfAudit(Base):
     __tablename__ = "if_audits"
     __table_args__ = (
         Index("ix_if_audits_user_created", "user_id", "created_at"),
@@ -89,20 +92,34 @@ class Audit(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, index=True, nullable=False)
-    product_id = Column(Integer, ForeignKey("if_products.id", ondelete="CASCADE"), index=True, nullable=False)
+    product_id = Column(
+        Integer,
+        ForeignKey("if_products.id", ondelete="CASCADE"),
+        index=True,
+        nullable=False,
+    )
     market = Column(Enum(MarketCode), nullable=False)
-    status = Column(Enum(AuditStatus), default=AuditStatus.PENDING, nullable=False, index=True)
+    status = Column(
+        Enum(AuditStatus),
+        default=AuditStatus.PENDING,
+        nullable=False,
+        index=True,
+    )
     score = Column(Float, default=0.0)
     missing_fields = Column(JSON, default=list)
     warnings = Column(JSON, default=list)
     raw_payload = Column(JSON, default=dict)
     duration_ms = Column(Integer, default=0)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        index=True,
+    )
 
-    product = relationship("Product", back_populates="audits")
+    product = relationship("IfProduct", back_populates="audits")
 
 
-class KpiCache(Base):
+class IfKpiCache(Base):
     __tablename__ = "if_kpi_cache"
     __table_args__ = ({"extend_existing": True},)
 
@@ -116,7 +133,7 @@ class KpiCache(Base):
     refreshed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
-class UserVisualPreference(Base):
+class IfUserVisualPreference(Base):
     """Used by 1.5 (Visual Identity). Created here so dashboard can preload theme."""
     __tablename__ = "if_user_visual_preferences"
     __table_args__ = ({"extend_existing": True},)
@@ -130,3 +147,10 @@ class UserVisualPreference(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+
+# Backward-compatible aliases so existing imports keep working.
+Product = IfProduct
+Audit = IfAudit
+KpiCache = IfKpiCache
+UserVisualPreference = IfUserVisualPreference
