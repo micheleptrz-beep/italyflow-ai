@@ -1,7 +1,7 @@
-
 """
 ItalyFlow AI - Compliance hub router (Section 2.2). ASCII only.
 Exports: router (HTML pages), api (JSON endpoints).
+Safe session access (works without SessionMiddleware).
 """
 from __future__ import annotations
 
@@ -34,10 +34,14 @@ api = APIRouter(prefix="/api/v1/compliance", tags=["compliance-api"])
 
 
 def get_current_user_id(request: Request) -> int:
-    if hasattr(request, "session"):
-        uid = request.session.get("user_id")
-        if uid is not None:
-            return int(uid)
+    try:
+        scope = getattr(request, "scope", {})
+        if isinstance(scope, dict) and "session" in scope:
+            uid = scope["session"].get("user_id")
+            if uid is not None:
+                return int(uid)
+    except Exception:
+        pass
     hv = request.headers.get("X-User-Id")
     if hv and hv.isdigit():
         return int(hv)
@@ -81,11 +85,8 @@ class CheckIn(BaseModel):
 def compute_score(body: ComputeIn, request: Request, db: Session = Depends(get_db)):
     uid = get_current_user_id(request)
     row = ComplianceHubService(db).compute_score(uid, body.product_id)
-    return {
-        "product_id": row.product_id, "global_score": row.global_score,
-        "by_market": row.by_market, "gaps": row.gaps,
-        "refreshed_at": row.refreshed_at,
-    }
+    return {"product_id": row.product_id, "global_score": row.global_score,
+            "by_market": row.by_market, "gaps": row.gaps, "refreshed_at": row.refreshed_at}
 
 
 @api.get("/gap")
@@ -111,13 +112,10 @@ def check(body: CheckIn, request: Request, db: Session = Depends(get_db)):
 @api.get("/changes")
 def feed(market: Optional[str] = None, since_days: int = 90, db: Session = Depends(get_db)):
     rows = ComplianceHubService(db).list_changes(market=market, since_days=since_days)
-    return [
-        {"id": r.id, "source": r.source, "market": r.market, "title": r.title,
-         "summary": r.summary, "url": r.url, "severity": r.severity.value,
-         "categories": r.affected_categories, "fields": r.affected_fields,
-         "published_at": r.published_at, "detected_at": r.detected_at}
-        for r in rows
-    ]
+    return [{"id": r.id, "source": r.source, "market": r.market, "title": r.title,
+             "summary": r.summary, "url": r.url, "severity": r.severity.value,
+             "categories": r.affected_categories, "fields": r.affected_fields,
+             "published_at": r.published_at, "detected_at": r.detected_at} for r in rows]
 
 
 @api.get("/changes/{change_id}/impact")
@@ -132,16 +130,13 @@ def refresh(db: Session = Depends(get_db)):
 
 
 @api.post("/certificates")
-async def upload_cert(
-    request: Request,
-    type: str = Form(...),
-    file: UploadFile = File(...),
-    product_id: Optional[int] = Form(None),
-    issuer: Optional[str] = Form(None),
-    serial: Optional[str] = Form(None),
-    expires_at: Optional[str] = Form(None),
-    db: Session = Depends(get_db),
-):
+async def upload_cert(request: Request, type: str = Form(...),
+                      file: UploadFile = File(...),
+                      product_id: Optional[int] = Form(None),
+                      issuer: Optional[str] = Form(None),
+                      serial: Optional[str] = Form(None),
+                      expires_at: Optional[str] = Form(None),
+                      db: Session = Depends(get_db)):
     uid = get_current_user_id(request)
     content = await file.read()
     exp = datetime.fromisoformat(expires_at) if expires_at else None
@@ -156,8 +151,5 @@ async def upload_cert(
 def list_certs(request: Request, db: Session = Depends(get_db)):
     uid = get_current_user_id(request)
     rows = CertificateService(db).list_for_user(uid)
-    return [
-        {"id": c.id, "type": c.type.value, "issuer": c.issuer, "serial": c.serial,
-         "expires_at": c.expires_at, "product_id": c.product_id}
-        for c in rows
-    ]
+    return [{"id": c.id, "type": c.type.value, "issuer": c.issuer, "serial": c.serial,
+             "expires_at": c.expires_at, "product_id": c.product_id} for c in rows]
