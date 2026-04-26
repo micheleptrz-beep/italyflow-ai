@@ -43,10 +43,6 @@ logger = logging.getLogger("italyflow")
 # ============================================================================
 app = FastAPI(title=settings.APP_NAME, version="3.0.0")
 
-# === Dashboard v3.0 ===
-from dashboard import dashboard_router
-app.include_router(dashboard_router)
-
 # --- ItalyFlow AI Dashboard (Section 1) ---
 from app.routers.dashboard import router as dashboard_router, api as dashboard_api
 app.include_router(dashboard_router)
