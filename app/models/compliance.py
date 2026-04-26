@@ -1,5 +1,6 @@
 """
 ItalyFlow AI - Compliance hub & certificate models (Section 2.2). ASCII only.
+NOTE: no ForeignKey to legacy 'users' table.
 """
 from __future__ import annotations
 
@@ -40,8 +41,9 @@ class IfCertificate(Base):
         {"extend_existing": True},
     )
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    product_id = Column(Integer, ForeignKey("if_products.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("if_products.id", ondelete="SET NULL"),
+                        nullable=True)
     type = Column(Enum(CertificateType), nullable=False)
     issuer = Column(String(200), nullable=True)
     serial = Column(String(120), nullable=True)
@@ -53,7 +55,6 @@ class IfCertificate(Base):
 
 
 class IfRegulatoryChange(Base):
-    """Detected updates from regulator feeds (FDA, GB7718, CFIA, RASFF, EFSA)."""
     __tablename__ = "if_regulatory_changes"
     __table_args__ = (
         UniqueConstraint("source", "external_id", name="uq_if_reg_changes_src_ext"),
@@ -61,15 +62,15 @@ class IfRegulatoryChange(Base):
         {"extend_existing": True},
     )
     id = Column(Integer, primary_key=True, index=True)
-    source = Column(String(40), nullable=False)         # fda, cfia, rasff, gb, efsa
+    source = Column(String(40), nullable=False)
     external_id = Column(String(200), nullable=False)
     market = Column(String(40), nullable=False, index=True)
     title = Column(String(400), nullable=False)
     summary = Column(Text, nullable=True)
     url = Column(String(800), nullable=True)
     severity = Column(Enum(ChangeSeverity), default=ChangeSeverity.INFO, nullable=False)
-    affected_categories = Column(JSON, default=list)    # ["oil","cheese"]
-    affected_fields = Column(JSON, default=list)        # ["allergens","origin"]
+    affected_categories = Column(JSON, default=list)
+    affected_fields = Column(JSON, default=list)
     published_at = Column(DateTime, nullable=True)
     detected_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -80,11 +81,12 @@ class IfComplianceScoreCache(Base):
         UniqueConstraint("product_id", name="uq_if_compliance_score_product"),
         {"extend_existing": True},
     )
-    product_id = Column(Integer, ForeignKey("if_products.id", ondelete="CASCADE"), primary_key=True)
+    product_id = Column(Integer, ForeignKey("if_products.id", ondelete="CASCADE"),
+                        primary_key=True)
     user_id = Column(Integer, nullable=False, index=True)
     global_score = Column(Float, default=0.0)
-    by_market = Column(JSON, default=dict)              # {"US_FDA": 92.0, ...}
-    gaps = Column(JSON, default=dict)                   # {"JP_FLA": ["allergens","origin"]}
+    by_market = Column(JSON, default=dict)
+    gaps = Column(JSON, default=dict)
     refreshed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
