@@ -1,8 +1,6 @@
 """
 ItalyFlow AI - Home router (unified landing). ASCII only.
 Exports: router (HTML pages at /).
-Provides:
-  GET /            -> unified homepage with hero, KPI, feature grid
 """
 from __future__ import annotations
 
@@ -31,10 +29,17 @@ router = APIRouter(tags=["home"])
 
 
 def _user_id(request: Request) -> int:
-    if hasattr(request, "session"):
-        uid = request.session.get("user_id")
-        if uid is not None:
-            return int(uid)
+    """Get user id from session (if SessionMiddleware installed) or X-User-Id header.
+    Never raises; returns 1 as dev fallback."""
+    # Safe session access: check scope directly to avoid AssertionError
+    try:
+        scope = getattr(request, "scope", {})
+        if isinstance(scope, dict) and "session" in scope:
+            uid = scope["session"].get("user_id")
+            if uid is not None:
+                return int(uid)
+    except Exception:
+        pass
     hv = request.headers.get("X-User-Id")
     if hv and hv.isdigit():
         return int(hv)
