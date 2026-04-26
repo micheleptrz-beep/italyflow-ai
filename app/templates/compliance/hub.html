@@ -1,57 +1,81 @@
 {% extends "base.html" %}
+{% block title %}Dashboard - ItalyFlow AI{% endblock %}
 {% block content %}
-<h1 class="text-xl font-semibold mb-4">Compliance hub</h1>
 
-<section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-  <div class="lg:col-span-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-    <div class="flex items-center justify-between mb-3">
-      <h2 class="font-semibold">Regulatory changes</h2>
-      <button hx-post="/api/v1/compliance/refresh" hx-swap="none"
-              class="text-xs px-2 py-1 rounded bg-brand text-white">Refresh now</button>
+{% if hero and hero.available %}
+<section class="relative overflow-hidden rounded-2xl mb-6" style="height:240px;">
+  {% if hero.blurhash %}
+    <img src="{{ hero.blurhash }}" aria-hidden="true" class="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl"/>
+  {% endif %}
+  <picture>
+    {% for src in hero.sources %}
+      <source type="{{ src.type }}"
+              srcset="{% for e in src.srcset %}{{ e.url }} {{ e.width }}w{% if not loop.last %}, {% endif %}{% endfor %}"
+              sizes="100vw">
+    {% endfor %}
+    <img src="{{ hero.fallback }}" alt="{{ hero.alt }}" class="absolute inset-0 w-full h-full object-cover" loading="eager"/>
+  </picture>
+  <div class="absolute inset-0" style="background:linear-gradient(180deg,rgba(0,0,0,0.1) 0%,rgba(15,23,42,0.6) 100%);"></div>
+  <div class="relative z-10 h-full flex items-end p-6 text-white">
+    <div>
+      <span class="text-xs uppercase tracking-wide text-white/80">Welcome back</span>
+      <h1 class="font-display text-2xl font-bold">Compliance dashboard</h1>
     </div>
-    <ul class="divide-y divide-slate-100 dark:divide-slate-800">
-      {% for c in changes %}
-      <li class="py-3">
-        <div class="flex items-center justify-between">
-          <a href="{{ c.url or '#' }}" target="_blank" class="font-medium hover:underline">{{ c.title }}</a>
-          {% set sev = c.severity.value if c.severity else 'info' %}
-          <span class="pill {% if sev=='critical' or sev=='high' %}pill-bad{% elif sev=='medium' %}pill-warn{% else %}pill-pending{% endif %}">{{ sev }}</span>
-        </div>
-        <div class="text-xs text-slate-500">{{ c.source|upper }} - {{ c.market }} - {{ c.detected_at.strftime('%Y-%m-%d') }}</div>
-        <p class="text-sm text-slate-700 dark:text-slate-300 mt-1">{{ c.summary }}</p>
-      </li>
-      {% else %}
-      <li class="py-6 text-center text-slate-500 text-sm">No changes detected yet.</li>
-      {% endfor %}
-    </ul>
   </div>
+  {% if hero.credit %}<div class="absolute bottom-1 right-2 text-[10px] text-white/60 z-10">{{ hero.credit }}</div>{% endif %}
+</section>
+{% else %}
+<h1 class="font-display text-2xl font-bold mb-6">Compliance dashboard</h1>
+{% endif %}
 
-  <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
-    <h2 class="font-semibold mb-3">Certificates</h2>
-    <div class="text-xs text-slate-500 mb-2">Expiring soon (60d): {{ expiring|length }}</div>
-    <ul class="space-y-2 text-sm">
-      {% for c in certs %}
-      <li class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-1">
-        <span>{{ c.type.value|upper }} - {{ c.issuer or 'n/a' }}</span>
-        <span class="text-xs text-slate-500">{{ c.expires_at.strftime('%Y-%m-%d') if c.expires_at else 'no expiry' }}</span>
-      </li>
-      {% else %}
-      <li class="text-slate-500 text-xs">No certificates uploaded.</li>
-      {% endfor %}
-    </ul>
-    <form class="mt-4 space-y-2 text-xs" enctype="multipart/form-data"
-          hx-post="/api/v1/compliance/certificates" hx-encoding="multipart/form-data" hx-swap="none">
-      <select name="type" class="w-full px-2 py-1 border rounded">
-        <option value="bio">BIO</option><option value="dop">DOP</option>
-        <option value="igp">IGP</option><option value="halal">HALAL</option>
-        <option value="kosher">KOSHER</option><option value="gluten_free">Gluten free</option>
-        <option value="non_gmo">Non-GMO</option><option value="other">Other</option>
-      </select>
-      <input type="text" name="issuer" placeholder="Issuer" class="w-full px-2 py-1 border rounded">
-      <input type="date" name="expires_at" class="w-full px-2 py-1 border rounded">
-      <input type="file" name="file" class="w-full text-xs" required>
-      <button class="w-full px-2 py-1 rounded bg-brand text-white">Upload certificate</button>
-    </form>
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+  {% set cards = [
+    ('Audits total', kpi.audits_total, 'all time'),
+    ('Last 7 days', kpi.audits_last_7d, 'audits'),
+    ('Compliance rate', (kpi.compliance_rate*100)|round(1), '%'),
+    ('Active markets', kpi.active_markets, 'markets'),
+  ] %}
+  {% for title, value, suffix in cards %}
+  <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+    <div class="text-xs uppercase tracking-wide text-slate-500">{{ title }}</div>
+    <div class="mt-2 text-3xl font-display font-bold">{{ value }}<span class="text-base text-slate-400 ml-1">{{ suffix }}</span></div>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 lg:col-span-2">
+    <div class="flex items-center justify-between">
+      <h2 class="font-display font-bold">Audits trend (7d)</h2>
+      <span class="text-xs text-slate-500">refreshed {{ kpi.refreshed_at.strftime('%H:%M UTC') }}</span>
+    </div>
+    <canvas id="spark" height="90"></canvas>
+  </div>
+  <div class="rounded-2xl border border-italy-gold/30 bg-gradient-to-br from-italy-cream to-amber-50 dark:from-amber-900/20 dark:to-amber-950/20 p-5">
+    <div class="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300">Estimated savings</div>
+    <div class="mt-2 text-3xl font-display font-bold text-amber-900 dark:text-amber-100">EUR {{ '{:,.0f}'.format(kpi.estimated_savings_eur) }}</div>
+    <p class="text-xs text-amber-800/70 dark:text-amber-200/70 mt-2">vs traditional consulting (350 EUR/audit)</p>
   </div>
 </section>
+
+<script>
+  const ctx = document.getElementById('spark');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: {{ (range(1,8)|list)|tojson }},
+      datasets: [{
+        data: {{ (kpi.sparkline_7d or [0,0,0,0,0,0,0])|tojson }},
+        borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,0.15)',
+        fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#0f766e'
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: { x: { display: false }, y: { beginAtZero: true } },
+      responsive: true, maintainAspectRatio: false
+    }
+  });
+</script>
 {% endblock %}
+
