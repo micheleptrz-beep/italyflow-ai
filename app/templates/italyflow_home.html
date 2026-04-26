@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}ItalyFlow AI - Made in Italy export intelligence{% endblock %}
+{% block content %}
+
+{# Hero with rotating background image, falls back gracefully if no asset is available #}
+<section class="relative overflow-hidden rounded-3xl shadow-xl mb-8" style="height: 480px; background:#0f766e;">
+  {% if hero and hero.available %}
+    {% if hero.blurhash %}
+      <img src="{{ hero.blurhash }}" aria-hidden="true"
+           class="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl" />
+    {% endif %}
+    <picture>
+      {% for src in hero.sources %}
+        <source type="{{ src.type }}"
+                srcset="{% for e in src.srcset %}{{ e.url }} {{ e.width }}w{% if not loop.last %}, {% endif %}{% endfor %}"
+                sizes="100vw">
+      {% endfor %}
+      <img src="{{ hero.fallback }}" alt="{{ hero.alt }}"
+           loading="eager" decoding="async" fetchpriority="high"
+           class="absolute inset-0 w-full h-full object-cover" />
+    </picture>
+  {% else %}
+    {# SVG fallback - elegant Italian gradient #}
+    <svg class="absolute inset-0 w-full h-full" viewBox="0 0 1600 480" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#fef3c7"/>
+          <stop offset=".4" stop-color="#fde68a"/>
+          <stop offset=".7" stop-color="#c8a04a"/>
+          <stop offset="1" stop-color="#78350f"/>
+        </linearGradient>
+        <linearGradient id="g2" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0" stop-color="#0f766e"/>
+          <stop offset="1" stop-color="#0f766e" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <rect width="1600" height="480" fill="url(#g1)"/>
+      <path d="M0,320 Q400,200 800,280 T1600,260 L1600,480 L0,480 Z" fill="#0f766e" opacity=".4"/>
+      <path d="M0,360 Q400,280 800,340 T1600,320 L1600,480 L0,480 Z" fill="#134e4a" opacity=".6"/>
+      <rect width="1600" height="480" fill="url(#g2)" opacity=".3"/>
+    </svg>
+  {% endif %}
+
+  <div class="absolute inset-0" style="background:linear-gradient(180deg,rgba(0,0,0,0.1) 0%,rgba(15,23,42,0.7) 100%);"></div>
+
+  <div class="relative z-10 h-full flex flex-col justify-end p-8 md:p-12 text-white">
+    <div class="max-w-2xl">
+      <span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur text-xs font-medium border border-white/20">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        Made in Italy &middot; AI compliance platform
+      </span>
+      <h1 class="font-display text-3xl md:text-5xl font-bold mt-4 leading-tight">
+        Export intelligence<br/>for Italian agrifood excellence
+      </h1>
+      <p class="mt-4 text-base md:text-lg text-white/85 max-w-xl">
+        AI-powered audits, multi-market compliance, smart label editor and regulatory tracking - all in one platform.
+      </p>
+      <div class="mt-6 flex flex-wrap gap-3">
+        <a href="/dashboard/wizard" class="px-5 py-2.5 rounded-xl bg-white text-brand-dark font-semibold shadow hover:shadow-lg transition">
+          Start a new audit
+        </a>
+        <a href="/dashboard/" class="px-5 py-2.5 rounded-xl bg-white/10 backdrop-blur border border-white/30 hover:bg-white/20 transition">
+          Open dashboard
+        </a>
+      </div>
+    </div>
+  </div>
+
+  {% if hero and hero.credit %}
+    <div class="absolute bottom-2 right-3 text-[10px] text-white/60 z-10">Photo: {{ hero.credit }}</div>
+  {% endif %}
+</section>
+
+{# KPI strip #}
+<section class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+  {% set cards = [
+    ('Audits total', kpi.audits_total if kpi else 0, 'all time', 'emerald'),
+    ('Last 7 days', kpi.audits_last_7d if kpi else 0, 'audits', 'sky'),
+    ('Compliance', ((kpi.compliance_rate*100)|round(1)) if kpi else 0, '%', 'amber'),
+    ('Active markets', kpi.active_markets if kpi else 0, 'markets', 'rose'),
+  ] %}
+  {% for title, value, suffix, color in cards %}
+  <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm hover:shadow transition">
+    <div class="text-xs uppercase tracking-wide text-slate-500">{{ title }}</div>
+    <div class="mt-2 text-3xl font-display font-bold">{{ value }}<span class="text-base text-slate-400 ml-1">{{ suffix }}</span></div>
+  </div>
+  {% endfor %}
+</section>
+
+{# Feature grid - pillars of the platform #}
+<section class="mb-8">
+  <h2 class="font-display text-2xl font-bold mb-4">Everything you need for global export</h2>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% set features = [
+      ('Smart Label Editor', 'Drag-and-drop label designer with versioning, diff and PDF export print-ready.', '/labels', 'Open editor', '#0f766e'),
+      ('Multi-Market Compliance', 'Score, gaps and regulatory tracking across FDA, GB7718, CFIA, JP, EU, UK, AE.', '/compliance/hub', 'Open hub', '#cf2027'),
+      ('Audit Timeline', 'Cronologia completa degli audit con filtri per mercato, prodotto e stato.', '/dashboard/timeline', 'View audits', '#009247'),
+      ('Product Catalog', 'Catalogo prodotti con DOP, IGP, BIO e attributi per mercato.', '/dashboard/catalog', 'View catalog', '#c8a04a'),
+      ('Compliance Heatmap', 'Matrice prodotto x mercato con score semaforico, click-to-drilldown.', '/dashboard/heatmap', 'Open heatmap', '#7c3aed'),
+      ('AI Translation', 'Traduzione contestuale per etichette CN/JP/AE con glossario brand e back-translation.', '/docs#/i18n', 'API docs', '#0284c7'),
+    ] %}
+    {% for title, desc, href, cta, accent in features %}
+    <a href="{{ href }}"
+       class="group relative rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 hover:shadow-lg transition overflow-hidden">
+      <div class="absolute top-0 left-0 w-1 h-full" style="background:{{ accent }};"></div>
+      <h3 class="font-display font-bold text-lg group-hover:text-brand transition">{{ title }}</h3>
+      <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">{{ desc }}</p>
+      <div class="mt-4 text-xs text-brand font-medium inline-flex items-center gap-1">
+        {{ cta }} <span class="group-hover:translate-x-1 transition">-&gt;</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+{# Recent activity strip #}
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+  <div class="lg:col-span-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-display font-bold">Audit trend (7 days)</h2>
+      <a href="/dashboard/timeline" class="text-xs text-brand hover:underline">View all -&gt;</a>
+    </div>
+    <canvas id="spark" height="80"></canvas>
+  </div>
+  <div class="rounded-2xl border border-italy-gold/30 bg-gradient-to-br from-italy-cream to-amber-50 dark:from-amber-900/20 dark:to-amber-950/20 p-6">
+    <div class="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300">Estimated savings</div>
+    <div class="mt-2 text-3xl font-display font-bold text-amber-900 dark:text-amber-100">
+      EUR {{ '{:,.0f}'.format(kpi.estimated_savings_eur if kpi else 0) }}
+    </div>
+    <p class="text-xs text-amber-800/70 dark:text-amber-200/70 mt-2">vs traditional consulting (350 EUR/audit benchmark)</p>
+  </div>
+</section>
+
+<script>
+  const ctx = document.getElementById('spark');
+  if (ctx) {
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: {{ (range(1,8)|list)|tojson }},
+        datasets: [{
+          data: {{ (kpi.sparkline_7d if kpi else [0,0,0,0,0,0,0])|tojson }},
+          borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,0.15)',
+          fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#0f766e'
+        }]
+      },
+      options: {
+        plugins: { legend: { display: false } },
+        scales: { x: { display: false }, y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+        responsive: true, maintainAspectRatio: false
+      }
+    });
+  }
+</script>
+{% endblock %}
