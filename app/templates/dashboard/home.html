@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+  {% set cards = [
+    ('Audits total', kpi.audits_total, 'all time'),
+    ('Last 7 days', kpi.audits_last_7d, 'audits'),
+    ('Compliance rate', (kpi.compliance_rate*100)|round(1), '%'),
+    ('Active markets', kpi.active_markets, 'markets'),
+  ] %}
+  {% for title, value, suffix in cards %}
+  <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+    <div class="text-xs uppercase tracking-wide text-slate-500">{{ title }}</div>
+    <div class="mt-2 text-3xl font-semibold">{{ value }}<span class="text-base text-slate-400 ml-1">{{ suffix }}</span></div>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 lg:col-span-2">
+    <div class="flex items-center justify-between">
+      <h2 class="font-semibold">Audits trend (7d)</h2>
+      <span class="text-xs text-slate-500">refreshed {{ kpi.refreshed_at.strftime('%H:%M UTC') }}</span>
+    </div>
+    <canvas id="spark" height="90"></canvas>
+  </div>
+  <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+    <div class="text-xs uppercase tracking-wide text-slate-500">Estimated savings vs traditional consulting</div>
+    <div class="mt-2 text-3xl font-semibold text-emerald-600">EUR {{ '{:,.0f}'.format(kpi.estimated_savings_eur) }}</div>
+    <p class="text-xs text-slate-500 mt-2">Based on EUR 350 / audit benchmark.</p>
+  </div>
+</section>
+
+<script>
+  const ctx = document.getElementById('spark');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: {{ (range(1,8)|list)|tojson }},
+      datasets: [{
+        data: {{ (kpi.sparkline_7d or [0,0,0,0,0,0,0])|tojson }},
+        borderColor: '#0f766e', backgroundColor: 'rgba(15,118,110,0.15)',
+        fill: true, tension: 0.35, pointRadius: 2
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: { x: { display: false }, y: { display: false } },
+      responsive: true, maintainAspectRatio: false
+    }
+  });
+</script>
+{% endblock %}
