@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block content %}
+<div x-data="labelEditor({{ label_id }}, {{ version.layers|tojson }})" class="grid grid-cols-12 gap-4">
+
+  <aside class="col-span-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-3">
+    <h2 class="font-semibold text-sm">Layers</h2>
+    <ul class="space-y-1 text-xs">
+      <template x-for="(l, i) in layers" :key="l.id">
+        <li class="flex items-center justify-between p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
+            :class="selected === l.id ? 'bg-slate-100 dark:bg-slate-800' : ''"
+            @click="selected = l.id">
+          <span x-text="l.type + ' #' + l.id"></span>
+          <button @click.stop="removeLayer(l.id)" class="text-rose-500">x</button>
+        </li>
+      </template>
+    </ul>
+    <div class="border-t pt-2 space-y-1">
+      <button class="w-full text-xs px-2 py-1 rounded bg-brand text-white" @click="addText()">+ Text</button>
+      <button class="w-full text-xs px-2 py-1 rounded bg-slate-700 text-white" @click="addShape()">+ Shape</button>
+      <button class="w-full text-xs px-2 py-1 rounded bg-slate-700 text-white" @click="addBarcode()">+ Barcode</button>
+    </div>
+  </aside>
+
+  <section class="col-span-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs text-slate-500">Canvas (mm, scaled)</span>
+      <div class="space-x-2">
+        <button class="text-xs px-2 py-1 rounded border" @click="reload()">Reload</button>
+        <button class="text-xs px-2 py-1 rounded bg-emerald-600 text-white" @click="save()">Save version</button>
+        <a class="text-xs px-2 py-1 rounded bg-slate-700 text-white"
+           :href="'/api/v1/labels/' + labelId + '/export.pdf'" target="_blank">Export PDF</a>
+      </div>
+    </div>
+    <div class="relative bg-white border border-slate-300" :style="canvasStyle()">
+      <template x-for="l in layers" :key="l.id">
+        <div class="absolute outline outline-1"
+             :class="selected === l.id ? 'outline-emerald-500' : 'outline-transparent hover:outline-slate-300'"
+             :style="layerStyle(l)" @click="selected = l.id">
+          <span x-show="l.type === 'text'" :style="textStyle(l)" x-text="l.text"></span>
+          <div x-show="l.type === 'shape'" class="w-full h-full" :style="'background:' + (l.fill||'#000')"></div>
+          <div x-show="l.type === 'barcode'" class="w-full h-full bg-black text-white text-[8px] flex items-end justify-center" x-text="l.value"></div>
+        </div>
+      </template>
+    </div>
+  </section>
+
+  <aside class="col-span-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+    <h2 class="font-semibold text-sm mb-2">Inspector</h2>
+    <template x-if="selectedLayer()">
+      <div class="space-y-2 text-xs">
+        <label class="block">Text/Value
+          <input class="w-full px-2 py-1 border rounded" x-model="selectedLayer().text"
+                 x-show="selectedLayer().type==='text'">
+          <input class="w-full px-2 py-1 border rounded" x-model="selectedLayer().value"
+                 x-show="selectedLayer().type==='barcode'">
+        </label>
+        <div class="grid grid-cols-2 gap-2">
+          <label>X mm <input type="number" class="w-full px-2 py-1 border rounded" x-model.number="selectedLayer().x"></label>
+          <label>Y mm <input type="number" class="w-full px-2 py-1 border rounded" x-model.number="selectedLayer().y"></label>
+          <label>W mm <input type="number" class="w-full px-2 py-1 border rounded" x-model.number="selectedLayer().w"></label>
+          <label>H mm <input type="number" class="w-full px-2 py-1 border rounded" x-model.number="selectedLayer().h"></label>
+        </div>
+        <label x-show="selectedLayer().type==='text'">Size pt
+          <input type="number" class="w-full px-2 py-1 border rounded" x-model.number="selectedLayer().size_pt">
+        </label>
+        <label>Color/Fill
+          <input type="color" class="w-full h-8 border rounded"
+                 :value="selectedLayer().color || selectedLayer().fill || '#111111'"
+                 @input="setColor($event.target.value)">
+        </label>
+        <button @click="checkCompliance()" class="w-full text-xs px-2 py-1 rounded bg-amber-500 text-white">
+          Run compliance check
+        </button>
+        <pre class="text-[10px] bg-slate-100 dark:bg-slate-800 p-2 rounded" x-text="JSON.stringify(complianceResult, null, 2)"></pre>
+      </div>
+    </template>
+  </aside>
+</div>
+
+<script>
+function labelEditor(labelId, initialLayers) {
+  return {
+    labelId, layers: initialLayers || [], selected: null, complianceResult: {},
+    canvasStyle() { return 'width: 600px; height: 360px;'; },
+    layerStyle(l) {
+      const sx = 6, sy = 6;
+      return `left:${l.x*sx}px; top:${l.y*sy}px; width:${l.w*sx}px; height:${l.h*sy}px;`;
+    },
+    textStyle(l) {
+      return `color:${l.color||'#111'}; font-size:${(l.size_pt||10)*1.2}px; line-height:1.1;`;
+    },
+    selectedLayer() { return this.layers.find(l => l.id === this.selected); },
+    setColor(v) {
+      const l = this.selectedLayer(); if (!l) return;
+      if (l.type === 'text') l.color = v; else l.fill = v;
+    },
+    addText() { this.layers.push({id: 'l'+Date.now(), type:'text', x:5,y:5,w:60,h:8, text:'Text', size_pt:10, color:'#111111'}); },
+    addShape() { this.layers.push({id: 'l'+Date.now(), type:'shape', x:5,y:30,w:40,h:2, fill:'#0f766e'}); },
+    addBarcode() { this.layers.push({id: 'l'+Date.now(), type:'barcode', x:60,y:40,w:30,h:12, value:'8001234567890'}); },
+    removeLayer(id) { this.layers = this.layers.filter(l => l.id !== id); },
+    async save() {
+      const r = await fetch(`/api/v1/labels/${this.labelId}/versions`, {
+        method: 'POST', headers: {'Content-Type':'application/json','X-User-Id':'1'},
+        body: JSON.stringify({layers: this.layers, note: 'editor save'})
+      });
+      const j = await r.json(); alert('Saved v' + j.version_no);
+    },
+    async checkCompliance() {
+      const r = await fetch(`/api/v1/compliance/check`, {
+        method: 'POST', headers: {'Content-Type':'application/json','X-User-Id':'1'},
+        body: JSON.stringify({label_id: this.labelId, layers: this.layers})
+      });
+      this.complianceResult = await r.json();
+    },
+    reload() { location.reload(); }
+  };
+}
+</script>
+{% endblock %}
