@@ -1,6 +1,7 @@
 """
 ItalyFlow AI - Labels router (Section 2.1). ASCII only.
 Exports: router (HTML pages), api (JSON endpoints).
+Safe session access (works without SessionMiddleware).
 """
 from __future__ import annotations
 
@@ -28,17 +29,20 @@ api = APIRouter(prefix="/api/v1/labels", tags=["labels-api"])
 
 
 def get_current_user_id(request: Request) -> int:
-    if hasattr(request, "session"):
-        uid = request.session.get("user_id")
-        if uid is not None:
-            return int(uid)
+    try:
+        scope = getattr(request, "scope", {})
+        if isinstance(scope, dict) and "session" in scope:
+            uid = scope["session"].get("user_id")
+            if uid is not None:
+                return int(uid)
+    except Exception:
+        pass
     hv = request.headers.get("X-User-Id")
     if hv and hv.isdigit():
         return int(hv)
-    return 1  # dev fallback
+    return 1
 
 
-# ---------- HTML ----------
 @router.get("", response_class=HTMLResponse)
 @router.get("/", response_class=HTMLResponse)
 def page_labels_list(request: Request, db: Session = Depends(get_db)):
@@ -65,7 +69,6 @@ def page_editor(label_id: int, request: Request, db: Session = Depends(get_db)):
     })
 
 
-# ---------- API ----------
 class TemplateOut(BaseModel):
     id: int
     market: str
@@ -147,4 +150,3 @@ def export_pdf(label_id: int, version_no: Optional[int] = None,
     pdf = LabelPdfService.render_pdf(lbl.width_mm, lbl.height_mm, lbl.bleed_mm, v.layers or [])
     headers = {"Content-Disposition": f'attachment; filename="label_{label_id}_v{v.version_no}.pdf"'}
     return Response(content=pdf, media_type="application/pdf", headers=headers)
-
