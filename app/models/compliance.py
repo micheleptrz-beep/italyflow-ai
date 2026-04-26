@@ -1,157 +1,106 @@
 """
-ItalyFlow AI - Compliance hub router (Section 2.2). ASCII only.
-Exports: router (HTML pages), api (JSON endpoints).
+ItalyFlow AI - Compliance hub & certificate MODELS (Section 2.2). ASCII only.
+This file defines SQLAlchemy tables ONLY. It must NOT import any service.
 """
 from __future__ import annotations
 
-from datetime import datetime
-from pathlib import Path
-from typing import Optional
+import enum
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 
-from database import get_db
-from app.services.certificate_service import CertificateService
-from app.services.compliance_hub_service import ComplianceHubService
-from app.services.regulatory_tracker_service import RegulatoryTrackerService
-
-TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-
-router = APIRouter(prefix="/compliance", tags=["compliance"])
-api = APIRouter(prefix="/api/v1/compliance", tags=["compliance-api"])
-
-
-def get_current_user_id(request: Request) -> int:
-    if hasattr(request, "session"):
-        uid = request.session.get("user_id")
-        if uid is not None:
-            return int(uid)
-    hv = request.headers.get("X-User-Id")
-    if hv and hv.isdigit():
-        return int(hv)
-    raise HTTPException(status_code=401, detail="Not authenticated")
+from database import Base
 
 
-@router.get("/hub", response_class=HTMLResponse)
-def page_hub(request: Request, db: Session = Depends(get_db)):
-    uid = get_current_user_id(request)
-    changes = ComplianceHubService(db).list_changes(limit=20)
-    certs = CertificateService(db).list_for_user(uid)
-    expiring = CertificateService(db).expiring_soon(uid, days=60)
-    return templates.TemplateResponse("compliance/hub.html", {
-        "request": request, "active": "compliance",
-        "changes": changes, "certs": certs, "expiring": expiring,
-    })
+class CertificateType(str, enum.Enum):
+    BIO = "bio"
+    DOP = "dop"
+    IGP = "igp"
+    HALAL = "halal"
+    KOSHER = "kosher"
+    GLUTEN_FREE = "gluten_free"
+    NON_GMO = "non_gmo"
+    OTHER = "other"
 
 
-class ComputeIn(BaseModel):
-    product_id: int
+class ChangeSeverity(str, enum.Enum):
+    INFO = "info"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
 
 
-class CheckIn(BaseModel):
-    label_id: Optional[int] = None
-    layers: Optional[list[dict]] = None
-    text: Optional[str] = None
-    market: Optional[str] = None
-
-
-@api.post("/score")
-def compute_score(body: ComputeIn, request: Request, db: Session = Depends(get_db)):
-    uid = get_current_user_id(request)
-    row = ComplianceHubService(db).compute_score(uid, body.product_id)
-    return {
-        "product_id": row.product_id,
-        "global_score": row.global_score,
-        "by_market": row.by_market,
-        "gaps": row.gaps,
-        "refreshed_at": row.refreshed_at,
-    }
-
-
-@api.get("/gap")
-def gap(product_id: int, market: str, request: Request, db: Session = Depends(get_db)):
-    uid = get_current_user_id(request)
-    return ComplianceHubService(db).gap_analysis(uid, product_id, market)
-
-
-@api.post("/check")
-def check(body: CheckIn, request: Request, db: Session = Depends(get_db)):
-    uid = get_current_user_id(request)
-    text = body.text or ""
-    if body.layers:
-        text = " ".join(
-            str(l.get("text", "")) for l in body.layers if l.get("type") == "text"
-        )
-    text = text.lower()
-    keywords = (
-        "ingredients", "allergens", "net weight", "best before",
-        "manufacturer", "origin",
+class IfCertificate(Base):
+    __tablename__ = "if_certificates"
+    __table_args__ = (
+        Index("ix_if_certificates_user_type", "user_id", "type"),
+        {"extend_existing": True},
     )
-    missing = [k for k in keywords if k not in text]
-    score = max(0.0, 100.0 - 12.0 * len(missing))
-    status = "compliant" if score >= 90 else ("warning" if score >= 60 else "non_compliant")
-    return {"status": status, "score": score, "missing": missing}
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("if_products.id", ondelete="SET NULL"),
+                        nullable=True)
+    type = Column(Enum(CertificateType), nullable=False)
+    issuer = Column(String(200), nullable=True)
+    serial = Column(String(120), nullable=True)
+    file_path = Column(String(400), nullable=True)
+    issued_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=True, index=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
-@api.get("/changes")
-def feed(market: Optional[str] = None, since_days: int = 90, db: Session = Depends(get_db)):
-    rows = ComplianceHubService(db).list_changes(market=market, since_days=since_days)
-    return [
-        {
-            "id": r.id, "source": r.source, "market": r.market, "title": r.title,
-            "summary": r.summary, "url": r.url, "severity": r.severity.value,
-            "categories": r.affected_categories, "fields": r.affected_fields,
-            "published_at": r.published_at, "detected_at": r.detected_at,
-        }
-        for r in rows
-    ]
-
-
-@api.get("/changes/{change_id}/impact")
-def impact(change_id: int, request: Request, db: Session = Depends(get_db)):
-    uid = get_current_user_id(request)
-    return ComplianceHubService(db).impact_for_user(uid, change_id)
-
-
-@api.post("/refresh")
-def refresh(db: Session = Depends(get_db)):
-    return RegulatoryTrackerService(db).refresh()
-
-
-@api.post("/certificates")
-async def upload_cert(
-    request: Request,
-    type: str = Form(...),
-    file: UploadFile = File(...),
-    product_id: Optional[int] = Form(None),
-    issuer: Optional[str] = Form(None),
-    serial: Optional[str] = Form(None),
-    expires_at: Optional[str] = Form(None),
-    db: Session = Depends(get_db),
-):
-    uid = get_current_user_id(request)
-    content = await file.read()
-    exp = datetime.fromisoformat(expires_at) if expires_at else None
-    cert = CertificateService(db).upload(
-        user_id=uid, type_=type, filename=file.filename, content=content,
-        product_id=product_id, issuer=issuer, serial=serial, expires_at=exp,
+class IfRegulatoryChange(Base):
+    __tablename__ = "if_regulatory_changes"
+    __table_args__ = (
+        UniqueConstraint("source", "external_id", name="uq_if_reg_changes_src_ext"),
+        Index("ix_if_reg_changes_market_pub", "market", "published_at"),
+        {"extend_existing": True},
     )
-    return {"id": cert.id, "type": cert.type.value, "expires_at": cert.expires_at}
+    id = Column(Integer, primary_key=True, index=True)
+    source = Column(String(40), nullable=False)
+    external_id = Column(String(200), nullable=False)
+    market = Column(String(40), nullable=False, index=True)
+    title = Column(String(400), nullable=False)
+    summary = Column(Text, nullable=True)
+    url = Column(String(800), nullable=True)
+    severity = Column(Enum(ChangeSeverity), default=ChangeSeverity.INFO, nullable=False)
+    affected_categories = Column(JSON, default=list)
+    affected_fields = Column(JSON, default=list)
+    published_at = Column(DateTime, nullable=True)
+    detected_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
-@api.get("/certificates")
-def list_certs(request: Request, db: Session = Depends(get_db)):
-    uid = get_current_user_id(request)
-    rows = CertificateService(db).list_for_user(uid)
-    return [
-        {
-            "id": c.id, "type": c.type.value, "issuer": c.issuer, "serial": c.serial,
-            "expires_at": c.expires_at, "product_id": c.product_id,
-        }
-        for c in rows
-    ]
+class IfComplianceScoreCache(Base):
+    __tablename__ = "if_compliance_score_cache"
+    __table_args__ = (
+        UniqueConstraint("product_id", name="uq_if_compliance_score_product"),
+        {"extend_existing": True},
+    )
+    product_id = Column(Integer, ForeignKey("if_products.id", ondelete="CASCADE"),
+                        primary_key=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    global_score = Column(Float, default=0.0)
+    by_market = Column(JSON, default=dict)
+    gaps = Column(JSON, default=dict)
+    refreshed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+# Backward-compat aliases
+Certificate = IfCertificate
+RegulatoryChange = IfRegulatoryChange
+ComplianceScoreCache = IfComplianceScoreCache
