@@ -1,5 +1,6 @@
 """
 ItalyFlow AI - Collaboration models (Section 2.4). ASCII only.
+NOTE: no ForeignKey to legacy 'users' table.
 """
 from __future__ import annotations
 
@@ -7,7 +8,7 @@ import enum
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    JSON, Boolean, Column, DateTime, Enum, ForeignKey, Index, Integer,
+    JSON, Boolean, Column, DateTime, Enum, Index, Integer,
     String, Text, UniqueConstraint,
 )
 
@@ -37,8 +38,8 @@ class IfWorkspaceMember(Base):
         {"extend_existing": True},
     )
     id = Column(Integer, primary_key=True)
-    workspace_owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    workspace_owner_id = Column(Integer, nullable=False)
+    user_id = Column(Integer, nullable=False)
     role = Column(Enum(Role), default=Role.VIEWER, nullable=False)
     invited_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -50,10 +51,10 @@ class IfComment(Base):
         {"extend_existing": True},
     )
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    target_type = Column(String(40), nullable=False)   # "label", "audit", "product"
+    user_id = Column(Integer, nullable=False)
+    target_type = Column(String(40), nullable=False)
     target_id = Column(Integer, nullable=False)
-    anchor = Column(JSON, default=dict)                # {"layer_id":"l1","field":"text"}
+    anchor = Column(JSON, default=dict)
     body = Column(Text, nullable=False)
     resolved = Column(Boolean, default=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -70,8 +71,9 @@ class IfApproval(Base):
     target_id = Column(Integer, nullable=False)
     step_no = Column(Integer, nullable=False)
     role_required = Column(Enum(Role), default=Role.EDITOR, nullable=False)
-    approver_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    state = Column(Enum(ApprovalState), default=ApprovalState.PENDING, nullable=False, index=True)
+    approver_user_id = Column(Integer, nullable=True)
+    state = Column(Enum(ApprovalState), default=ApprovalState.PENDING,
+                   nullable=False, index=True)
     decided_at = Column(DateTime, nullable=True)
     note = Column(Text, nullable=True)
 
@@ -83,10 +85,10 @@ class IfActivityLog(Base):
         {"extend_existing": True},
     )
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, nullable=False)
     target_type = Column(String(40), nullable=False)
     target_id = Column(Integer, nullable=False)
-    action = Column(String(40), nullable=False)        # created, edited, approved, commented
+    action = Column(String(40), nullable=False)
     payload = Column(JSON, default=dict)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -95,3 +97,4 @@ WorkspaceMember = IfWorkspaceMember
 Comment = IfComment
 Approval = IfApproval
 ActivityLog = IfActivityLog
+
