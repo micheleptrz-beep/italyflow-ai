@@ -1,10 +1,10 @@
 """
 ItalyFlow AI - Dashboard service (P0). ASCII only.
 Pure-Python aggregations on top of SQLAlchemy. Cached KPI with TTL.
+Uses the namespaced "if_*" tables defined in app/models/dashboard.py.
 """
 from __future__ import annotations
 
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional
 
@@ -20,7 +20,7 @@ from app.models.dashboard import (
 )
 
 KPI_TTL_SECONDS = 60
-TRADITIONAL_CONSULTANT_COST_PER_AUDIT_EUR = 350.0  # benchmark used for ROI
+TRADITIONAL_CONSULTANT_COST_PER_AUDIT_EUR = 350.0
 
 
 class DashboardService:
@@ -67,7 +67,6 @@ class DashboardService:
 
         savings = float(total) * TRADITIONAL_CONSULTANT_COST_PER_AUDIT_EUR
 
-        # sparkline last 7 days
         rows = self.db.execute(
             select(
                 func.date(Audit.created_at).label("d"),
@@ -193,7 +192,7 @@ class DashboardService:
         region: Optional[str],
         label_text: str,
         markets: Iterable[str],
-        compliance_runner,  # callable(label_text, market) -> dict
+        compliance_runner,
     ) -> dict:
         product = Product(
             user_id=user_id,
@@ -209,7 +208,7 @@ class DashboardService:
         by_market: dict[str, dict] = {}
 
         for m in markets:
-            result = compliance_runner(label_text, m)  # MUST return dict with score, status, missing, warnings
+            result = compliance_runner(label_text, m)
             audit = Audit(
                 user_id=user_id,
                 product_id=product.id,
