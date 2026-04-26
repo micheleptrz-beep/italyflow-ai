@@ -1,0 +1,78 @@
+{# ItalyFlow AI - HeroBackground partial.
+   Usage:
+     {% include "partials/hero_background.html" with context %}
+   Required context vars: hero (dict from VisualsService.hero_payload), height (string CSS), parallax (bool).
+#}
+{% if hero is not defined or not hero %}
+  {% set hero = {"available": False, "fallback_color": "#1f2937", "overlay": "rgba(15,23,42,0.55)"} %}
+{% endif %}
+{% set height = height|default("60vh") %}
+{% set parallax = parallax|default(true) %}
+
+<div class="if-hero relative overflow-hidden rounded-2xl"
+     style="height: {{ height }}; background-color: {{ hero.dominant_color|default('#1f2937') }};"
+     x-data="{ loaded: false }"
+     x-init="$nextTick(() => { const img = $refs.img; if (img && img.complete) loaded = true; })">
+
+  {% if hero.available %}
+    {# LQIP blur-up placeholder #}
+    {% if hero.blurhash %}
+      <img src="{{ hero.blurhash }}" aria-hidden="true"
+           class="absolute inset-0 w-full h-full object-cover scale-110 blur-xl transition-opacity duration-700"
+           :class="loaded ? 'opacity-0' : 'opacity-100'" />
+    {% endif %}
+
+    <picture>
+      {% for src in hero.sources %}
+        <source type="{{ src.type }}"
+                srcset="{% for e in src.srcset %}{{ e.url }} {{ e.width }}w{% if not loop.last %}, {% endif %}{% endfor %}"
+                sizes="100vw">
+      {% endfor %}
+      <img x-ref="img"
+           src="{{ hero.fallback }}"
+           alt="{{ hero.alt|default('') }}"
+           loading="eager" decoding="async" fetchpriority="high"
+           class="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+           :class="loaded ? 'opacity-100' : 'opacity-0'"
+           @load="loaded = true"
+           {% if parallax %}data-parallax="0.3"{% endif %} />
+    </picture>
+  {% endif %}
+
+  {# Overlay gradient for WCAG AAA contrast on overlaid text #}
+  <div class="absolute inset-0 pointer-events-none"
+       style="background: linear-gradient(180deg, rgba(0,0,0,0.15) 0%, {{ hero.overlay|default('rgba(15,23,42,0.55)') }} 100%);"></div>
+
+  <div class="relative z-10 h-full flex items-end p-6 text-white">
+    {% block hero_content %}{% endblock %}
+  </div>
+
+  {% if hero.credit %}
+    <div class="absolute bottom-2 right-3 text-[10px] text-white/70 z-10">
+      Photo: {{ hero.credit }}
+    </div>
+  {% endif %}
+</div>
+
+<script>
+  // Subtle parallax (Apple product page style). Disabled if user prefers reduced motion.
+  (function() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const targets = document.querySelectorAll('[data-parallax]');
+    if (!targets.length) return;
+    let ticking = false;
+    function update() {
+      targets.forEach(el => {
+        const rect = el.getBoundingClientRect();
+        const speed = parseFloat(el.dataset.parallax || '0.3');
+        const offset = rect.top * speed * -1 * 0.15;
+        el.style.transform = 'translate3d(0,' + offset.toFixed(1) + 'px,0) scale(1.05)';
+      });
+      ticking = false;
+    }
+    window.addEventListener('scroll', () => {
+      if (!ticking) { requestAnimationFrame(update); ticking = true; }
+    }, { passive: true });
+    update();
+  })();
+</script>
